@@ -80,7 +80,7 @@ export default class Pacientes {
     //SELECCION DE PACIENTE POR -----> RUT %PARECIDO% <------
     async PacienteParecidoRut(rut){
         const conexion = DataBase.getInstance();
-        const query = 'SELECT * FROM pacienteDatos WHERE rut LIKE ?';
+        const query = 'SELECT * FROM pacienteDatos WHERE rut LIKE ? AND estado_paciente <> 0';
         const param = [`%${rut}%`]
         try {
             const resultado = await conexion.ejecutarQuery(query, param);
@@ -118,8 +118,9 @@ export default class Pacientes {
 // ACTUALIZACION DE PACIENTE POR ID
     async updatePaciente(nombre,apellido,rut,nacimiento,sexo,prevision_id,telefono,correo,direccion,pais,observacion1,observacion2,observacion3,apoderado,apoderado_rut,medicamentosUsados,habitos,comentariosAdicionales,id_paciente){
         const conexion = DataBase.getInstance();
+        const correoNormalizado = correo && String(correo).trim() ? String(correo).trim() : null;
         const query = 'UPDATE pacienteDatos SET nombre= ? ,apellido = ? , rut = ?, nacimiento = ?, sexo = ?, prevision_id = ?, telefono = ?, correo = ? , direccion = ?, pais = ?, observacion1 = ?, observacion2 = ?, observacion3 = ?, apoderado = ?, apoderado_rut = ?, medicamentosUsados = ?, habitos = ?, comentariosAdicionales = ? WHERE id_paciente = ?';
-        const param = [nombre,apellido,rut,nacimiento,sexo,prevision_id,telefono,correo,direccion,pais,observacion1,observacion2,observacion3,apoderado,apoderado_rut,medicamentosUsados,habitos,comentariosAdicionales,id_paciente ];
+        const param = [nombre,apellido,rut,nacimiento,sexo,prevision_id,telefono,correoNormalizado,direccion,pais,observacion1,observacion2,observacion3,apoderado,apoderado_rut,medicamentosUsados,habitos,comentariosAdicionales,id_paciente ];
         try {
             const resultado = await conexion.ejecutarQuery(query,param);
             if (resultado) {
@@ -136,6 +137,7 @@ export default class Pacientes {
     async insertPaciente(nombre,apellido,rut,nacimiento,sexo,prevision_id,telefono,correo,direccion,pais,observacion1,observacion2,observacion3,apoderado,apoderado_rut,medicamentosUsados,habitos,comentariosAdicionales){
         try {
         const conexion = DataBase.getInstance();
+        const correoNormalizado = correo && String(correo).trim() ? String(correo).trim() : null;
 
         const consultaValidacionRut = `SELECT 1 FROM pacienteDatos WHERE rut = ? AND estado_paciente <> 0`;
         const paramsRut = [rut];
@@ -155,7 +157,7 @@ export default class Pacientes {
                     sexo,
                     prevision_id,
                     telefono,
-                    correo,
+                    correoNormalizado,
                     direccion,
                     pais,
                     observacion1,
@@ -171,7 +173,8 @@ export default class Pacientes {
                 return resultado;
             }
         } catch (error) {
-            throw new Error('NO se logo ingresar paciente nuevo / Problema al establecer la conexion con la base de datos desde la clase Pacientes.js')
+            console.error("[Pacientes.js] Error SQL en insertPaciente:", error);
+            throw error;
         }
     }
 
@@ -206,6 +209,7 @@ export default class Pacientes {
 // INSERCION DE NUEVO PACIENTE EN LA BASE DE DATOS
     async insertPacientemp(nombre,apellido,rut,nacimiento,sexo,prevision_id,telefono,correo,direccion,pais,observacion1 = null,observacion2 = null,observacion3 = null,apoderado = null,apoderado_rut = null,medicamentosUsados = null,habitos = null,comentariosAdicionales = null){
         const conexion = DataBase.getInstance();
+        const correoNormalizado = correo && String(correo).trim() ? String(correo).trim() : null;
 
         try {
             const queryVerificadora = 'SELECT * FROM pacienteDatos WHERE rut = ?';
@@ -219,7 +223,7 @@ export default class Pacientes {
             }else{
 
                 const query = 'INSERT INTO pacienteDatos (nombre,apellido,rut,nacimiento,sexo,prevision_id,telefono,correo,direccion,pais,observacion1,observacion2,observacion3,apoderado,apoderado_rut,medicamentosUsados,habitos,comentariosAdicionales) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-                const param = [nombre, apellido, rut, nacimiento, sexo, prevision_id, telefono, correo, direccion, pais, observacion1, observacion2, observacion3, apoderado, apoderado_rut, medicamentosUsados, habitos, comentariosAdicionales];
+                const param = [nombre, apellido, rut, nacimiento, sexo, prevision_id, telefono, correoNormalizado, direccion, pais, observacion1, observacion2, observacion3, apoderado, apoderado_rut, medicamentosUsados, habitos, comentariosAdicionales];
                 const resultado = await conexion.ejecutarQuery(query,param);
                 if (resultado){
                     return resultado;

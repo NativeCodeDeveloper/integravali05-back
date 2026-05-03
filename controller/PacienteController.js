@@ -127,7 +127,7 @@ export default class PacienteController {
             } = req.body;
             console.log(req.body)
 
-            if (!nombre || !apellido || !rut || !nacimiento || !sexo || !prevision_id || !telefono || !correo || !direccion || !pais) {
+            if (!nombre || !apellido || !rut || !nacimiento || !sexo || !prevision_id || !telefono || !direccion || !pais) {
                 return res.status(400).json({message : 'Faltan datos obligatorios en el body'})
             }
             const paciente = new Paciente();
@@ -143,6 +143,7 @@ export default class PacienteController {
                 return res.status(200).json({message: false})
             }
         } catch (error) {
+            console.error("[PacienteController] Error en insertarPacienteNuevo:", error);
             res.status(500).json({
                 error: "No se ha podido realizar la consulta desde PacienteController"
             });
@@ -173,7 +174,7 @@ export default class PacienteController {
                 id_paciente
             } = req.body;
             console.log(req.body)
-            if (!nombre || !apellido || !rut || !nacimiento || !sexo || !prevision_id || !telefono || !correo || !direccion || !pais || !id_paciente) {
+            if (!nombre || !apellido || !rut || !nacimiento || !sexo || !prevision_id || !telefono || !direccion || !pais || !id_paciente) {
                 return res.status(400).json({message : 'sindato'})
             }
             const paciente = new Paciente();
