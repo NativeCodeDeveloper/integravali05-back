@@ -192,7 +192,11 @@ export default class ReservaPacienteController {
             const claseReservaPaciente = new ReservaPacientes();
             const resultadoQuery = await claseReservaPaciente.actualizarReserva(nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional, id_reserva);
 
-            if (resultadoQuery.affectedRows > 0) {
+            if (resultadoQuery?.conflicto) {
+                return res.status(400).json({message: "conflicto"});
+            }
+
+            if (resultadoQuery?.affectedRows > 0) {
                 return res.status(200).json({message: true});
             } else {
                 return res.status(200).json({message: false});
@@ -302,63 +306,60 @@ export default class ReservaPacienteController {
             }
 
             const claseReservaPaciente = new ReservaPacientes();
+            const resultadoQuery = await claseReservaPaciente.insertarReservaPaciente(nombrePaciente, apellidoPaciente, rut, telefono, correoNormalizado, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional)
 
-            const validacionHoras = await claseReservaPaciente.validarDisponibilidadBoolean(fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional);
-            if (!validacionHoras) {
+            if (resultadoQuery?.conflicto) {
                 return res.status(400).send({message: "conflicto"})
-            } else {
+            }
 
-                const resultadoQuery = await claseReservaPaciente.insertarReservaPaciente(nombrePaciente, apellidoPaciente, rut, telefono, correoNormalizado, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional)
-
-                if (resultadoQuery.affectedRows > 0) {
-                    // Enviar correo de confirmación (no bloquear la respuesta si falla)
-                    if (correoNormalizado) {
-                        try {
-                            await NotificacionAgendamiento.enviarCorreoConfirmacionReserva({
-                                to: correoNormalizado,
-                                nombrePaciente,
-                                apellidoPaciente,
-                                rut,
-                                telefono,
-                                fechaInicio,
-                                horaInicio,
-                                fechaFinalizacion,
-                                horaFinalizacion,
-                                estadoReserva,
-                                id_reserva: resultadoQuery.insertId
-                            });
-                        } catch (err) {
-                            console.error("[MAIL] Error:", err.message);
-                        }
+            if (resultadoQuery?.affectedRows > 0) {
+                // Enviar correo de confirmación (no bloquear la respuesta si falla)
+                if (correoNormalizado) {
+                    try {
+                        await NotificacionAgendamiento.enviarCorreoConfirmacionReserva({
+                            to: correoNormalizado,
+                            nombrePaciente,
+                            apellidoPaciente,
+                            rut,
+                            telefono,
+                            fechaInicio,
+                            horaInicio,
+                            fechaFinalizacion,
+                            horaFinalizacion,
+                            estadoReserva,
+                            id_reserva: resultadoQuery.insertId
+                        });
+                    } catch (err) {
+                        console.error("[MAIL] Error:", err.message);
                     }
-
-
-                    // Enviar correo de notificación al equipo
-                    NotificacionAgendamiento.enviarCorreoConfirmacionEquipo({
-                        nombrePaciente,
-                        apellidoPaciente,
-                        fechaInicio,
-                        horaInicio,
-                        accion: "AGENDADA",
-                        id_reserva: resultadoQuery.insertId
-                    }).catch(err => {
-                        console.error("[MAIL EQUIPO] Error:", err.message);
-                    });
-
-                    // Enviar WhatsApp de confirmación
-                    notificacionAgendamiento({
-                        telefono,
-                        nombre: nombrePaciente,
-                        fecha: fechaInicio,
-                        hora: horaInicio
-                    }).catch(err => {
-                        console.error("[WSP] Error:", err.message);
-                    });
-
-                    return res.status(200).send({message: true})
-                } else {
-                    return res.status(200).send({message: false})
                 }
+
+
+                // Enviar correo de notificación al equipo
+                NotificacionAgendamiento.enviarCorreoConfirmacionEquipo({
+                    nombrePaciente,
+                    apellidoPaciente,
+                    fechaInicio,
+                    horaInicio,
+                    accion: "AGENDADA",
+                    id_reserva: resultadoQuery.insertId
+                }).catch(err => {
+                    console.error("[MAIL EQUIPO] Error:", err.message);
+                });
+
+                // Enviar WhatsApp de confirmación
+                notificacionAgendamiento({
+                    telefono,
+                    nombre: nombrePaciente,
+                    fecha: fechaInicio,
+                    hora: horaInicio
+                }).catch(err => {
+                    console.error("[WSP] Error:", err.message);
+                });
+
+                return res.status(200).send({message: true})
+            } else {
+                return res.status(200).send({message: false})
             }
 
         } catch (error) {
@@ -421,62 +422,59 @@ export default class ReservaPacienteController {
 
 
             const claseReservaPaciente = new ReservaPacientes();
+            const resultadoQuery = await claseReservaPaciente.insertarReservaPaciente(nombrePaciente, apellidoPaciente, rut, telefono, correoNormalizado, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional)
 
-            const validacionHoras = await claseReservaPaciente.validarDisponibilidadBoolean(fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional);
-            if (!validacionHoras) {
+            if (resultadoQuery?.conflicto) {
                 return res.status(400).send({message: "conflicto"})
-            } else {
+            }
 
-                const resultadoQuery = await claseReservaPaciente.insertarReservaPaciente(nombrePaciente, apellidoPaciente, rut, telefono, correoNormalizado, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional)
-
-                if (resultadoQuery.affectedRows > 0) {
-                    // Enviar correo de confirmación al paciente
-                    if (correoNormalizado) {
-                        try {
-                            await NotificacionAgendamiento.enviarCorreoConfirmacionReserva({
-                                to: correoNormalizado,
-                                nombrePaciente,
-                                apellidoPaciente,
-                                rut,
-                                telefono,
-                                fechaInicio,
-                                horaInicio,
-                                fechaFinalizacion,
-                                horaFinalizacion,
-                                estadoReserva,
-                                id_reserva: resultadoQuery.insertId
-                            });
-                        } catch (err) {
-                            console.error("[MAIL] Error:", err.message);
-                        }
+            if (resultadoQuery?.affectedRows > 0) {
+                // Enviar correo de confirmación al paciente
+                if (correoNormalizado) {
+                    try {
+                        await NotificacionAgendamiento.enviarCorreoConfirmacionReserva({
+                            to: correoNormalizado,
+                            nombrePaciente,
+                            apellidoPaciente,
+                            rut,
+                            telefono,
+                            fechaInicio,
+                            horaInicio,
+                            fechaFinalizacion,
+                            horaFinalizacion,
+                            estadoReserva,
+                            id_reserva: resultadoQuery.insertId
+                        });
+                    } catch (err) {
+                        console.error("[MAIL] Error:", err.message);
                     }
-
-                    // Enviar correo de notificación al equipo
-                    NotificacionAgendamiento.enviarCorreoConfirmacionEquipo({
-                        nombrePaciente,
-                        apellidoPaciente,
-                        fechaInicio,
-                        horaInicio,
-                        accion: "AGENDADA",
-                        id_reserva: resultadoQuery.insertId
-                    }).catch(err => {
-                        console.error("[MAIL EQUIPO] Error:", err.message);
-                    });
-
-                    // Enviar WhatsApp de confirmación
-                    notificacionAgendamiento({
-                        telefono,
-                        nombre: nombrePaciente,
-                        fecha: fechaInicio,
-                        hora: horaInicio
-                    }).catch(err => {
-                        console.error("[WSP] Error:", err.message);
-                    });
-
-                    return res.status(200).send({message: true})
-                } else {
-                    return res.status(200).send({message: false})
                 }
+
+                // Enviar correo de notificación al equipo
+                NotificacionAgendamiento.enviarCorreoConfirmacionEquipo({
+                    nombrePaciente,
+                    apellidoPaciente,
+                    fechaInicio,
+                    horaInicio,
+                    accion: "AGENDADA",
+                    id_reserva: resultadoQuery.insertId
+                }).catch(err => {
+                    console.error("[MAIL EQUIPO] Error:", err.message);
+                });
+
+                // Enviar WhatsApp de confirmación
+                notificacionAgendamiento({
+                    telefono,
+                    nombre: nombrePaciente,
+                    fecha: fechaInicio,
+                    hora: horaInicio
+                }).catch(err => {
+                    console.error("[WSP] Error:", err.message);
+                });
+
+                return res.status(200).send({message: true})
+            } else {
+                return res.status(200).send({message: false})
             }
 
         } catch (error) {

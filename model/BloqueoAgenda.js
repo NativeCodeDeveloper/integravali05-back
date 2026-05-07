@@ -17,7 +17,7 @@ export default class BloqueoAgenda {
     async insertarBloqueoAgendaModel(id_profesional,fechaInicio,horaInicio,fechaFinalizacion,horaFinalizacion,motivo) {
         try {
             const conexion = DataBase.getInstance();
-            const queryPrevia = `SELECT * FROM bloqueoAgenda
+            const queryBloqueoPrevio = `SELECT * FROM bloqueoAgenda
                 WHERE id_profesional = ?
                 AND estado_bloqueoAgenda <> 0
                 AND fechaInicio <= ?
@@ -26,16 +26,24 @@ export default class BloqueoAgenda {
                 AND horaFinalizacion > ?`;
             const paramsPrevios = [id_profesional, fechaFinalizacion, fechaInicio, horaFinalizacion, horaInicio];
 
-            const respuestaBackendVerificadora = await conexion.ejecutarQuery(queryPrevia, paramsPrevios);
-            let disponibilidadHorarioBloqueo;
+            const queryReservaPrevia = `SELECT * FROM reservaPacientes
+                WHERE id_profesional = ?
+                AND estadoPeticion <> 0
+                AND LOWER(COALESCE(estadoReserva, '')) <> 'anulada'
+                AND fechaInicio <= ?
+                AND fechaFinalizacion >= ?
+                AND horaInicio < ?
+                AND horaFinalizacion > ?`;
 
-            if (respuestaBackendVerificadora.length > 0) {
-                disponibilidadHorarioBloqueo = false;
-            }else{
-                disponibilidadHorarioBloqueo = true;
-            }
+            const [respuestaBloqueosPrevios, respuestaReservasPrevias] = await Promise.all([
+                conexion.ejecutarQuery(queryBloqueoPrevio, paramsPrevios),
+                conexion.ejecutarQuery(queryReservaPrevia, paramsPrevios)
+            ]);
 
-            if (disponibilidadHorarioBloqueo) {
+            const hayBloqueoPrevio = Array.isArray(respuestaBloqueosPrevios) && respuestaBloqueosPrevios.length > 0;
+            const hayReservaPrevia = Array.isArray(respuestaReservasPrevias) && respuestaReservasPrevias.length > 0;
+
+            if (!hayBloqueoPrevio && !hayReservaPrevia) {
 
                 const query = 'INSERT INTO bloqueoAgenda (id_profesional,fechaInicio,horaInicio,fechaFinalizacion,horaFinalizacion,motivo) VALUES (?,?,?,?,?,?)';
                 const params = [id_profesional,fechaInicio,horaInicio,fechaFinalizacion,horaFinalizacion,motivo];

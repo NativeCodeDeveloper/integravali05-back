@@ -97,6 +97,10 @@ export const createOrder = async (req, res) => {
                 estadoReserva, preference_id,estadoPeticion,id_profesional
             );
 
+            if (resultadoInsert?.conflicto) {
+                return res.status(409).json({ error: 'El horario seleccionado ya no se encuentra disponible.' });
+            }
+
             if (resultadoInsert && resultadoInsert.affectedRows > 0) {
                 console.log('Reserva insertada con estado "pendiente pago", preference_id:', preference_id);
                 return res.status(200).json({

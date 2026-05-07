@@ -35,6 +35,77 @@ export default class ReservaPacientes {
 
     }
 
+    crearLockKey(id_profesional) {
+        return `reserva_profesional_${id_profesional}`;
+    }
+
+    async adquirirLockReserva(conn, id_profesional) {
+        const lockKey = this.crearLockKey(id_profesional);
+        const [rows] = await conn.query('SELECT GET_LOCK(?, 5) AS lockStatus', [lockKey]);
+        const lockStatus = Array.isArray(rows) ? rows[0]?.lockStatus : rows?.lockStatus;
+
+        if (Number(lockStatus) !== 1) {
+            throw new Error('No se pudo bloquear el horario del profesional para procesar la reserva.');
+        }
+
+        return lockKey;
+    }
+
+    async liberarLockReserva(conn, lockKey) {
+        if (!lockKey) return;
+        try {
+            await conn.query('SELECT RELEASE_LOCK(?)', [lockKey]);
+        } catch (_) {
+            // noop
+        }
+    }
+
+    async contarConflictos(conn, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional, opciones = {}) {
+        const {ignorarReservaId = null} = opciones;
+
+        const query = `
+SELECT COUNT(*) AS cnt FROM (
+      SELECT id_reserva AS id
+      FROM reservaPacientes
+      WHERE id_profesional = ?
+      AND estadoPeticion <> 0
+      AND COALESCE(LOWER(estadoReserva), '') NOT IN ('cancelada', 'anulada')
+      AND NOT (
+        TIMESTAMP(fechaFinalizacion, horaFinalizacion) <= TIMESTAMP(?, ?)
+        OR TIMESTAMP(fechaInicio, horaInicio) >= TIMESTAMP(?, ?)
+      )
+      AND (? IS NULL OR id_reserva <> ?)
+      UNION ALL
+      SELECT id_bloqueo AS id
+      FROM bloqueoAgenda
+      WHERE id_profesional = ?
+      AND estado_bloqueoAgenda <> 0
+      AND NOT (
+        TIMESTAMP(fechaFinalizacion, horaFinalizacion) <= TIMESTAMP(?, ?)
+        OR TIMESTAMP(fechaInicio, horaInicio) >= TIMESTAMP(?, ?)
+      )
+    ) AS conflictos
+    `;
+
+        const params = [
+            id_profesional,
+            fechaInicio,
+            horaInicio,
+            fechaFinalizacion,
+            horaFinalizacion,
+            ignorarReservaId,
+            ignorarReservaId,
+            id_profesional,
+            fechaInicio,
+            horaInicio,
+            fechaFinalizacion,
+            horaFinalizacion
+        ];
+
+        const [filas] = await conn.query(query, params);
+        return Array.isArray(filas) ? Number(filas[0]?.cnt ?? 0) : Number(filas?.cnt ?? 0);
+    }
+
 
     async cambiarReservaPagada(preference_id) {
         try {
@@ -75,17 +146,41 @@ export default class ReservaPacientes {
     //METODO PARA ACTUALZIAR NUEVAS CITAS MEDICAS
     // Al actualizar se resetean los flags de recordatorio para que se reenvíen con la nueva fecha/hora
     async actualizarReserva(nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional, id_reserva) {
+        let conn;
+        let lockKey;
         try {
             const conexion = DataBase.getInstance();
+            conn = await conexion.obtenerConexion();
+            lockKey = await this.adquirirLockReserva(conn, id_profesional);
+
+            const conflictos = await this.contarConflictos(
+                conn,
+                fechaInicio,
+                horaInicio,
+                fechaFinalizacion,
+                horaFinalizacion,
+                id_profesional,
+                {ignorarReservaId: id_reserva}
+            );
+
+            if (conflictos > 0) {
+                return {conflicto: true};
+            }
+
             const query = 'UPDATE reservaPacientes SET nombrePaciente = ? , apellidoPaciente = ?, rut = ? , telefono = ? , email = ? , fechaInicio = ?  , horaInicio = ? , fechaFinalizacion = ? , horaFinalizacion = ? , estadoReserva = ? , id_profesional = ? , recordatorio12h = 0, recordatorio6h = 0, wspRecordatorio12h = 0, wspRecordatorio6h = 0, wspRecordatorio1h = 0 WHERE id_reserva = ?';
             const param = [nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional, id_reserva]
-            const resultadoQuery = await conexion.ejecutarQuery(query, param);
+            const [resultadoQuery] = await conn.query(query, param);
 
             if (resultadoQuery) {
                 return resultadoQuery;
             }
         } catch (e) {
             throw new Error(e)
+        } finally {
+            if (conn) {
+                await this.liberarLockReserva(conn, lockKey);
+                conn.release();
+            }
         }
     }
 
@@ -146,57 +241,45 @@ export default class ReservaPacientes {
 
     //METODO PARA INSERTAR NUEVAS CITAS MEDICAS
     async insertarReservaPaciente(nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional) {
+        let conn;
+        let lockKey;
         try {
             const conexion = DataBase.getInstance();
+            conn = await conexion.obtenerConexion();
+            lockKey = await this.adquirirLockReserva(conn, id_profesional);
+
+            const conflictos = await this.contarConflictos(conn, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional);
+            if (conflictos > 0) {
+                return {conflicto: true};
+            }
+
             const query = 'INSERT INTO reservaPacientes(nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio,fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional) VALUES (?,?,?,?,?,?,?,?,?,?,?)';
             const param = [nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, id_profesional];
 
-            const resultadoQuery = await conexion.ejecutarQuery(query, param);
+            const [resultadoQuery] = await conn.query(query, param);
             if (resultadoQuery) {
                 return resultadoQuery;
             }
         } catch (e) {
             throw new Error(e)
+        } finally {
+            if (conn) {
+                await this.liberarLockReserva(conn, lockKey);
+                conn.release();
+            }
         }
     }
 
 //DEVUELVE UN VALOR booleano PARA EVALUAR SI LAS HORAS MEDICAS SE SUPERPONEN CON RESERVAS O BLOQUEOS
     async validarDisponibilidadBoolean(fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional) {
         const conexion = DataBase.getInstance();
-
-        const query = `
-SELECT COUNT(*) AS cnt FROM (
-      SELECT id_reserva AS id
-      FROM reservaPacientes
-      WHERE id_profesional = ?
-      AND estadoPeticion <> 0
-      AND estadoReserva <> 'cancelada'
-      AND NOT (
-        TIMESTAMP(fechaFinalizacion, horaFinalizacion) <= TIMESTAMP(?, ?)
-        OR TIMESTAMP(fechaInicio, horaInicio) >= TIMESTAMP(?, ?)
-      )
-      UNION ALL
-      SELECT id_bloqueo AS id
-      FROM bloqueoAgenda
-      WHERE id_profesional = ?
-      AND estado_bloqueoAgenda <> 0
-      AND ? >= fechaInicio
-      AND ? <= fechaFinalizacion
-      AND NOT (
-        horaFinalizacion <= ?
-        OR horaInicio >= ?
-      )
-    ) AS conflictos
-    `;
-
-        const params = [
-            id_profesional, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion,
-            id_profesional, fechaInicio, fechaInicio, horaInicio, horaFinalizacion
-        ];
-        const filas = await conexion.ejecutarQuery(query, params);
-
-        const cnt = Array.isArray(filas) ? filas[0].cnt : filas.cnt;
-        return cnt === 0; // true = disponible, false = hay conflicto con reserva o bloqueo
+        const conn = await conexion.obtenerConexion();
+        try {
+            const cnt = await this.contarConflictos(conn, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional);
+            return cnt === 0; // true = disponible, false = hay conflicto con reserva o bloqueo
+        } finally {
+            conn.release();
+        }
     }
 
 
@@ -295,17 +378,32 @@ SELECT COUNT(*) AS cnt FROM (
 
     //METODO PARA INSERTAR NUEVAS CITAS MEDICAS DESDE METODOS INTERNOS DEL BACKEND COMO MERCADO PAGO
     async insertarReservaPacienteBackend(nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, preference_id, estadoPeticion,id_profesional) {
+        let conn;
+        let lockKey;
         try {
             const conexion = DataBase.getInstance();
+            conn = await conexion.obtenerConexion();
+            lockKey = await this.adquirirLockReserva(conn, id_profesional);
+
+            const conflictos = await this.contarConflictos(conn, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, id_profesional);
+            if (conflictos > 0) {
+                return {conflicto: true};
+            }
+
             const query = 'INSERT INTO reservaPacientes(nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio,fechaFinalizacion, horaFinalizacion, estadoReserva, preference_id, estadoPeticion,id_profesional) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)';
             const param = [nombrePaciente, apellidoPaciente, rut, telefono, email, fechaInicio, horaInicio, fechaFinalizacion, horaFinalizacion, estadoReserva, preference_id,estadoPeticion,id_profesional];
 
-            const resultadoQuery = await conexion.ejecutarQuery(query, param);
+            const [resultadoQuery] = await conn.query(query, param);
             if (resultadoQuery) {
                 return resultadoQuery;
             }
         } catch (e) {
             throw new Error(e)
+        } finally {
+            if (conn) {
+                await this.liberarLockReserva(conn, lockKey);
+                conn.release();
+            }
         }
     }
 

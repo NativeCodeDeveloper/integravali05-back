@@ -1,5 +1,7 @@
 import twilio from 'twilio';
 
+const TIMEZONE_CL = 'America/Santiago';
+
 /**
  * SERVICIO DE NOTIFICACIONES WHATSAPP VÍA TWILIO (TEMPLATE APROBADO)
  *
@@ -38,6 +40,72 @@ function formatearTelefonoWhatsApp(telefono) {
     }
 
     return `whatsapp:+56${limpio}`;
+}
+
+function formatearFechaWhatsApp(fecha) {
+    if (!fecha) return "";
+
+    if (fecha instanceof Date && !Number.isNaN(fecha.getTime())) {
+        return new Intl.DateTimeFormat('es-CL', {
+            timeZone: TIMEZONE_CL,
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        }).format(fecha);
+    }
+
+    const valor = String(fecha).trim();
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
+        const [year, month, day] = valor.split('-');
+        return `${day}-${month}-${year}`;
+    }
+
+    const fechaDate = new Date(valor);
+    if (!Number.isNaN(fechaDate.getTime())) {
+        return new Intl.DateTimeFormat('es-CL', {
+            timeZone: TIMEZONE_CL,
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+        }).format(fechaDate);
+    }
+
+    return valor;
+}
+
+function formatearHoraWhatsApp(hora) {
+    if (!hora) return "";
+
+    if (hora instanceof Date && !Number.isNaN(hora.getTime())) {
+        return new Intl.DateTimeFormat('es-CL', {
+            timeZone: TIMEZONE_CL,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        }).format(hora);
+    }
+
+    const valor = String(hora).trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(valor)) {
+        return valor.slice(0, 5);
+    }
+
+    if (/^\d{2}:\d{2}$/.test(valor)) {
+        return valor;
+    }
+
+    const horaDate = new Date(valor);
+    if (!Number.isNaN(horaDate.getTime())) {
+        return new Intl.DateTimeFormat('es-CL', {
+            timeZone: TIMEZONE_CL,
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+        }).format(horaDate);
+    }
+
+    return valor;
 }
 
 /**
@@ -108,6 +176,8 @@ export async function notificacionAgendamiento({ telefono, nombre, clinica, fech
     const fromNumber = TWILIO_WHATSAPP_FROM.startsWith('+')
         ? TWILIO_WHATSAPP_FROM
         : `+${TWILIO_WHATSAPP_FROM}`;
+    const fechaFormateada = formatearFechaWhatsApp(fecha);
+    const horaFormateada = formatearHoraWhatsApp(hora);
 
     try {
         const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
@@ -119,14 +189,14 @@ export async function notificacionAgendamiento({ telefono, nombre, clinica, fech
             contentVariables: JSON.stringify({
                 1: nombre,
                 2: nombreClinica,
-                3: fecha,
-                4: hora,
+                3: fechaFormateada,
+                4: horaFormateada,
                 5: DIRECCION_EMPRESA,
                 6: TELEFONO_EMPRESA,
             })
         });
 
-        console.log(`[WSP] Mensaje enviado a ${destinatario} (${nombre} - ${fecha} ${hora})`);
+        console.log(`[WSP] Mensaje enviado a ${destinatario} (${nombre} - ${fechaFormateada} ${horaFormateada})`);
         return true;
     } catch (error) {
         console.error("[WSP] Error al enviar mensaje:", error.message);
@@ -192,6 +262,8 @@ export async function enviarRecordatorio_1hora({ telefono, nombre, clinica, fech
     const fromNumber = TWILIO_WHATSAPP_FROM.startsWith('+')
         ? TWILIO_WHATSAPP_FROM
         : `+${TWILIO_WHATSAPP_FROM}`;
+    const fechaFormateada = formatearFechaWhatsApp(fecha);
+    const horaFormateada = formatearHoraWhatsApp(hora);
 
     try {
         const client = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
@@ -203,14 +275,14 @@ export async function enviarRecordatorio_1hora({ telefono, nombre, clinica, fech
             contentVariables: JSON.stringify({
                 1: nombre,
                 2: nombreClinica,
-                3: fecha,
-                4: hora,
+                3: fechaFormateada,
+                4: horaFormateada,
                 5: DIRECCION_EMPRESA,
                 6: TELEFONO_EMPRESA
             })
         });
 
-        console.log(`[WSP] Mensaje enviado a ${destinatario} (${nombre} - ${fecha} ${hora})`);
+        console.log(`[WSP] Mensaje enviado a ${destinatario} (${nombre} - ${fechaFormateada} ${horaFormateada})`);
         return true;
     } catch (error) {
         console.error("[WSP] Error al enviar mensaje:", error.message);
