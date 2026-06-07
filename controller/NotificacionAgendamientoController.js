@@ -1,5 +1,6 @@
 import NotificacionAgendamiento from "../services/notificacionAgendamiento.js";
 import ReservaPacientes from "../model/ReservaPacientes.js";
+import { formatearFechaCalendario } from "../utils/fechaHora.js";
 
 export default class NotificacionAgendamientoController {
 
@@ -191,7 +192,7 @@ export default class NotificacionAgendamientoController {
                 <div class="icon">✅</div>
                 <h1>¡Cita Confirmada!</h1>
                 <p><strong>${nombrePaciente} ${apellidoPaciente}</strong></p>
-                <p>Tu cita para el <strong>${new Date(fechaInicio).toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</strong> a las <strong>${horaInicio}</strong> ha sido confirmada exitosamente.</p>
+                <p>Tu cita para el <strong>${formatearFechaCalendario(fechaInicio, { weekday: "long" })}</strong> a las <strong>${horaInicio}</strong> ha sido confirmada exitosamente.</p>
                 <p>Hemos notificado a nuestro equipo de tu confirmacion.</p>
                 <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
                   Nos vemos pronto en ${empresa}.
@@ -466,7 +467,7 @@ export default class NotificacionAgendamientoController {
                 <div class="icon">❌</div>
                 <h1>Cita Cancelada</h1>
                 <p><strong>${nombrePaciente} ${apellidoPaciente}</strong></p>
-                <p>Tu cita para el <strong>${new Date(fechaInicio).toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</strong> a las <strong>${horaInicio}</strong> ha sido cancelada.</p>
+                <p>Tu cita para el <strong>${formatearFechaCalendario(fechaInicio, { weekday: "long" })}</strong> a las <strong>${horaInicio}</strong> ha sido cancelada.</p>
                 <p>Hemos notificado a nuestro equipo de tu cancelacion.</p>
                 <p style="margin-top: 30px; color: #6b7280; font-size: 14px;">
                   Esperamos verte pronto en ${empresa}.

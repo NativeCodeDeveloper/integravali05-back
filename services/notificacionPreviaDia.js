@@ -1,5 +1,10 @@
 import DataBase from '../config/Database.js';
 import { enviarRecordatorio_1hora } from './notificacionWhatsApp.js';
+import {
+    formatearFechaCalendario,
+    obtenerFechaHoraNegocio,
+    ZONA_HORARIA_NEGOCIO
+} from '../utils/fechaHora.js';
 
 /**
  * SISTEMA DE RECORDATORIOS AUTOMÁTICOS DE CITAS
@@ -220,6 +225,7 @@ async function marcarRecordatorioWhatsAppEnviado(id_reserva, tipoRecordatorio) {
 async function obtenerReservasParaRecordatorio() {
     try {
         const conexion = DataBase.getInstance();
+        const ahoraNegocio = obtenerFechaHoraNegocio();
 
         // Obtener reservas activas que están entre 0 y 13 horas en el futuro
         const query = `
@@ -237,15 +243,15 @@ async function obtenerReservasParaRecordatorio() {
         COALESCE(wspRecordatorio12h, 0) as wspRecordatorio12h,
         COALESCE(wspRecordatorio6h, 0) as wspRecordatorio6h,
         COALESCE(wspRecordatorio1h, 0) as wspRecordatorio1h,
-        TIMESTAMPDIFF(MINUTE, NOW(), TIMESTAMP(fechaInicio, horaInicio)) as minutos_restantes
+        TIMESTAMPDIFF(MINUTE, ?, TIMESTAMP(fechaInicio, horaInicio)) as minutos_restantes
       FROM reservaPacientes
       WHERE estadoReserva IN ('reservada', 'CONFIRMADA')
         AND estadoPeticion <> 0
-        AND TIMESTAMP(fechaInicio, horaInicio) > NOW()
-        AND TIMESTAMP(fechaInicio, horaInicio) <= DATE_ADD(NOW(), INTERVAL 13 HOUR)
+        AND TIMESTAMP(fechaInicio, horaInicio) > ?
+        AND TIMESTAMP(fechaInicio, horaInicio) <= DATE_ADD(?, INTERVAL 13 HOUR)
     `;
 
-        const reservas = await conexion.ejecutarQuery(query);
+        const reservas = await conexion.ejecutarQuery(query, [ahoraNegocio, ahoraNegocio, ahoraNegocio]);
         return Array.isArray(reservas) ? reservas : [];
     } catch (error) {
         console.error("[RECORDATORIO] Error al obtener reservas:", error.message);
@@ -257,9 +263,7 @@ async function obtenerReservasParaRecordatorio() {
  * Formatea la fecha para mostrar en el correo
  */
 function formatearFecha(fechaStr) {
-    const fecha = new Date(fechaStr);
-    const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    return fecha.toLocaleDateString('es-CL', opciones);
+    return formatearFechaCalendario(fechaStr, {weekday: 'long'});
 }
 
 /**
@@ -273,7 +277,9 @@ function formatearFecha(fechaStr) {
 export async function ejecutarRecordatoriosAutomaticos() {
     console.log("[RECORDATORIO] ========================================");
     console.log("[RECORDATORIO] Iniciando proceso de recordatorios...");
-    console.log("[RECORDATORIO] Fecha/Hora actual:", new Date().toLocaleString('es-CL'));
+    console.log("[RECORDATORIO] Fecha/Hora actual:", new Date().toLocaleString('es-CL', {
+        timeZone: ZONA_HORARIA_NEGOCIO
+    }));
 
     try {
         const reservas = await obtenerReservasParaRecordatorio();
